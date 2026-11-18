@@ -1,16 +1,52 @@
-# This is a sample Python script.
 
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+import asyncio
+import json
 
+from fastmcp import Client
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
+from src.agent.mcp_server import mcp
 
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('PyCharm')
+async def main():
+    async with Client(mcp) as client:
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+        print("\n=== УСПЕШНЫЙ ЗАПРОС ===")
+
+        success = await client.call_tool(
+            "check_tubing",
+            {
+                "well_id": "W-31",
+                "od_mm": 73,
+                "wall_mm": 5.5,
+                "id_mm": 62,
+            },
+        )
+
+        print(json.dumps(
+            success.data,
+            ensure_ascii=False,
+            indent=2,
+        ))
+
+        print("\n=== НЕКОРРЕКТНЫЙ ВХОД ===")
+
+        failure = await client.call_tool(
+            "check_tubing",
+            {
+                "well_id": "W-31",
+                "od_mm": 73,
+                "wall_mm": 5.5,
+                "id_mm": 80,
+            },
+        )
+
+        print(json.dumps(
+            failure.data,
+            ensure_ascii=False,
+            indent=2,
+        ))
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
