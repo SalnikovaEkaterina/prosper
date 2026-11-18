@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# PyCharm
+.idea/
+
+# Runtime logs
+logs/
+
+# Backup of nested Git repository
+src/agent_git_backup/
