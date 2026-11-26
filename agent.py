@@ -1,6 +1,5 @@
-"""Точка входа агента для бенчмарка."""
+"""Публичная точка входа агента: natural language -> LLM -> MCP -> AgentResult."""
+from src.agent.loop import run
 from src.agent.schemas import AgentResult
 
-
-def run(request, ctx) -> AgentResult:
-    raise NotImplementedError
+__all__ = ["run", "AgentResult"]

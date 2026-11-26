@@ -1,52 +1,25 @@
+from __future__ import annotations
 
-import asyncio
+import argparse
 import json
 
-from fastmcp import Client
-
-from src.agent.mcp_server import mcp
+from agent import run
 
 
-async def main():
-    async with Client(mcp) as client:
+def main() -> None:
+    parser = argparse.ArgumentParser(description="PROSPER engineering agent demo")
+    parser.add_argument("request", nargs="*", help="Инженерный запрос на русском")
+    parser.add_argument("--offline", action="store_true", help="Не обращаться к LLM; использовать fallback-parser")
+    parser.add_argument("--strict-llm", action="store_true", help="Не использовать fallback при ошибке LLM")
+    args = parser.parse_args()
 
-        print("\n=== УСПЕШНЫЙ ЗАПРОС ===")
+    request = " ".join(args.request).strip() if args.request else input("Инженерный запрос: ").strip()
+    result = run(request, {"use_llm": not args.offline, "strict_llm": args.strict_llm})
 
-        success = await client.call_tool(
-            "check_tubing",
-            {
-                "well_id": "W-31",
-                "od_mm": 73,
-                "wall_mm": 5.5,
-                "id_mm": 62,
-            },
-        )
-
-        print(json.dumps(
-            success.data,
-            ensure_ascii=False,
-            indent=2,
-        ))
-
-        print("\n=== НЕКОРРЕКТНЫЙ ВХОД ===")
-
-        failure = await client.call_tool(
-            "check_tubing",
-            {
-                "well_id": "W-31",
-                "od_mm": 73,
-                "wall_mm": 5.5,
-                "id_mm": 80,
-            },
-        )
-
-        print(json.dumps(
-            failure.data,
-            ensure_ascii=False,
-            indent=2,
-        ))
+    print("\n=== AGENT RESULT ===")
+    print(json.dumps(result.model_dump(), ensure_ascii=False, indent=2))
+    print("\nЖурнал: logs/llm_calls.jsonl и logs/agent_runs.jsonl; MCP: logs/mcp_calls.jsonl")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
-
+    main()
