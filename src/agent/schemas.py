@@ -6,6 +6,15 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
+class TubingInput(BaseModel):
+    """Исходные данные одной секции НКТ."""
+
+    well_id: str = Field(min_length=1)
+    od_mm: float = Field(gt=0)
+    wall_mm: float = Field(gt=0)
+    id_mm: float = Field(gt=0)
+
+
 class TaskType(str, Enum):
     CHECK_TUBING = "CHECK_TUBING"
     CREATE_MODEL_PLAN = "CREATE_MODEL_PLAN"
