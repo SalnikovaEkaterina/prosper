@@ -47,3 +47,11 @@ def register_tools(mcp: FastMCP):
             prosper.close_session()
             return "Сессия PROSPER успешно закрыта."
         return "Сессия уже была закрыта."
+        
+    @mcp.tool()
+    def open_prosper_session() -> str:
+        """Открывает новую сессию в PROSPER. Используй, если получил ошибку 'Сессия не открыта'."""
+        prosper.session_id = None # Сбрасываем старый ID
+        if prosper.open_session():
+            return "Сессия PROSPER успешно открыта."
+        return "Не удалось открыть сессию. Возможно, токен занят другим студентом."
