@@ -1,6 +1,9 @@
 from mcp.server.fastmcp import FastMCP
 import os
+from dotenv import load_dotenv
 from src.prosper_client import ProsperClient
+
+load_dotenv() 
 
 # Инициализируем клиент PROSPER
 prosper = ProsperClient(
