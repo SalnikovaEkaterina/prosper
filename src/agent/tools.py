@@ -14,10 +14,8 @@ def register_tools(mcp: FastMCP):
     @mcp.tool()
     def get_prosper_parameter(tag: str) -> str:
         """Читает значение параметра из модели PROSPER по его тегу (например, 'PROSPER.PVT.Input.Solgor')."""
-        # Проверяем, открыта ли сессия, если нет - открываем
         if not prosper.session_id:
             prosper.open_session()
-            
         result = prosper.execute_job({"op": "get", "tag": tag})
         return str(result)
 
@@ -26,7 +24,6 @@ def register_tools(mcp: FastMCP):
         """Устанавливает значение параметра в модели PROSPER. Изменяет общую модель."""
         if not prosper.session_id:
             prosper.open_session()
-            
         result = prosper.execute_job({"op": "set", "tag": tag, "value": value})
         return str(result)
 
@@ -35,6 +32,7 @@ def register_tools(mcp: FastMCP):
         """Запускает расчет в PROSPER. Доступные команды: pvt_calculate, inflow_calculate, system_calculate."""
         if not prosper.session_id:
             prosper.open_session()
-            
+        result = prosper.execute_job({"op": "run", "command_id": command_id})
+        return str(result)
         result = prosper.execute_job({"op": "run", "command_id": command_id})
         return str(result)
