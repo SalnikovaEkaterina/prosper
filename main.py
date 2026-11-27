@@ -1,195 +1,81 @@
-
-import argparse
-import asyncio
-import json
 import os
-import re
-
+import streamlit as st
 from dotenv import load_dotenv
-from fastmcp import Client
-from openai import AsyncOpenAI
-from pydantic import ValidationError
 
-from src.agent.mcp_server import mcp
-from src.agent.schemas import TubingInput
+# Импортируем наши модули
+from src.prosper_client import ProsperClient
+from agent import ProsperAgent
 
-
-# Загружаем API-ключ из файла .env
+# Загружаем переменные окружения из .env
 load_dotenv()
 
-MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
+# Настройка страницы Streamlit
+st.set_page_config(page_title="PROSPER AI Assistant", page_icon="🛢️", layout="centered")
+st.title("🛢️ AI-Ассистент PROSPER")
+st.markdown("Задайте вопрос по модели или попросите выполнить расчет.")
 
+@st.cache_resource
+def init_system():
+    """Инициализация клиента PROSPER и Агента (кэшируется)."""
+    # Получаем ключи из переменных окружения
+    prosper_url = os.getenv("PROSPER_API_URL")
+    prosper_token = os.getenv("PROSPER_API_TOKEN")
+    deepseek_key = os.getenv("DEEPSEEK_API_KEY")
+    deepseek_model = os.getenv("DEEPSEEK_MODEL")
 
-async def extract_data_with_llm(request: str) -> TubingInput:
-    """LLM извлекает параметры НКТ из русского текста."""
+    if not all([prosper_url, prosper_token, deepseek_key, deepseek_model]):
+        st.error("Ошибка: Не все переменные окружения заданы. Проверьте файл .env")
+        return None, None
 
-    api_key = os.getenv("GROQ_API_KEY")
+    # 1. Инициализируем клиент PROSPER
+    prosper = ProsperClient(base_url=prosper_url, token=prosper_token)
+    
+    # 2. Проверяем здоровье сервера
+    status, health = prosper.health()
+    if status != 200:
+        st.error(f"Сервер PROSPER недоступен. Статус: {status}, Ответ: {health}")
+        return None, None
 
-    if not api_key:
-        raise RuntimeError(
-            "Не найден GROQ_API_KEY. Проверь файл .env"
-        )
+    # 3. Открываем сессию
+    if not prosper.open_session():
+        st.error("Не удалось открыть сессию PROSPER. Возможно, токен уже занят другим студентом.")
+        return None, None
 
-    llm = AsyncOpenAI(
-        api_key=api_key,
+    # 4. Создаем агента (используем RouterAI как базу)
+    agent = ProsperAgent(
+        api_key=deepseek_key,
         base_url="https://routerai.ru/api/v1",
-        timeout=60,
-        max_retries=1,
+        model_name=deepseek_model,
+        prosper_client=prosper
     )
+    
+    return agent, prosper
 
-    try:
-        response = await llm.chat.completions.create(
-            model=MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "Ты извлекаешь параметры НКТ из инженерного запроса. "
-                        "Верни только JSON с полями: "
-                        "well_id, od_mm, wall_mm, id_mm. "
-                        "Все диаметры и толщина — в мм. "
-                        "Не исправляй неправильные значения. "
-                        "Не вычисляй внутренний диаметр вместо пользователя. "
-                        "Не выдумывай отсутствующие параметры. "
-                        "Для отсутствующих значений используй null. "
-                        "Никакого Markdown и пояснений."
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": request,
-                },
-            ],
-            temperature=0,
-            max_completion_tokens=300,
-        )
-    finally:
-        await llm.close()
+# Инициализируем систему при первом запуске
+agent, prosper = init_system()
 
-    if not response.choices:
-        raise RuntimeError("Groq вернул пустой список choices")
+if agent and prosper:
+    # Хранилище сообщений в сессии Streamlit
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
 
-    content = response.choices[0].message.content
+    # Отображаем историю чата
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
-    if not content:
-        raise RuntimeError("Groq вернул пустой текст ответа")
+    # Поле ввода для пользователя
+    if prompt := st.chat_input("Например: прочитай параметр PROSPER.PVT.Input.Solgor"):
+        # Добавляем сообщение пользователя в историю
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
 
-    # Убираем Markdown, если модель добавила ```json
-    content = re.sub(
-        r"^```(?:json)?\s*|\s*```$",
-        "",
-        content.strip(),
-        flags=re.IGNORECASE,
-    ).strip()
-
-    print("\n=== GROQ: ПАРАМЕТРЫ ИЗ ТЕКСТА ===")
-    print(content)
-
-    # Проверяем ответ модели через Pydantic
-    return TubingInput.model_validate_json(content)
-
-
-async def call_mcp(client, data: TubingInput):
-    """Вызываем настоящий MCP-инструмент."""
-
-    response = await client.call_tool(
-        "check_tubing",
-        data.model_dump(),
-    )
-
-    return response.data
-
-
-async def main():
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument(
-        "--llm",
-        action="store_true",
-        help="Разобрать запрос через Groq API",
-    )
-
-    parser.add_argument(
-        "--request",
-        type=str,
-        default=None,
-        help="Инженерный запрос на русском языке",
-    )
-
-    args = parser.parse_args()
-
-    async with Client(mcp) as client:
-
-        if args.llm:
-            # Один текстовый запрос или два демонстрационных
-            requests = (
-                [args.request]
-                if args.request
-                else [
-                    (
-                        "Проверь НКТ скважины W-31: "
-                        "наружный диаметр 73 мм, "
-                        "толщина стенки 5.5 мм, "
-                        "внутренний диаметр 62 мм."
-                    ),
-                    (
-                        "Проверь НКТ скважины W-31: "
-                        "наружный диаметр 73 мм, "
-                        "толщина стенки 5.5 мм, "
-                        "внутренний диаметр 80 мм."
-                    ),
-                ]
-            )
-
-            for request in requests:
-                print("\n=== ЗАПРОС ПОЛЬЗОВАТЕЛЯ ===")
-                print(request)
-
-                try:
-                    data = await extract_data_with_llm(request)
-
-                    print("\n=== ВЫЗОВ MCP ===")
-                    result = await call_mcp(client, data)
-
-                    print("\n=== РЕЗУЛЬТАТ АГЕНТА ===")
-                    print(json.dumps(
-                        result,
-                        ensure_ascii=False,
-                        indent=2,
-                    ))
-
-                except (ValidationError, ValueError) as error:
-                    print("\n=== ОШИБКА ВХОДНЫХ ДАННЫХ ===")
-                    print(str(error))
-
-                except Exception as error:
-                    print("\n=== ОШИБКА LLM/API/MCP ===")
-                    print(type(error).__name__, str(error)[:1000])
-
-        else:
-            # Старый режим — без LLM и без API-ключа
-            for label, id_mm in [
-                ("УСПЕШНЫЙ ЗАПРОС", 62),
-                ("НЕКОРРЕКТНЫЙ ВХОД", 80),
-            ]:
-                print(f"\n=== {label} ===")
-
-                response = await client.call_tool(
-                    "check_tubing",
-                    {
-                        "well_id": "W-31",
-                        "od_mm": 73,
-                        "wall_mm": 5.5,
-                        "id_mm": id_mm,
-                    },
-                )
-
-                print(json.dumps(
-                    response.data,
-                    ensure_ascii=False,
-                    indent=2,
-                ))
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+        # Получаем ответ от агента
+        with st.chat_message("assistant"):
+            with st.spinner("Думаю..."):
+                response = agent.run(prompt)
+                st.markdown(response)
+        
+        # Добавляем ответ агента в историю
+        st.session_state.messages.append({"role": "assistant", "content": response})
