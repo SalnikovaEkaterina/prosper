@@ -39,3 +39,11 @@ def register_tools(mcp: FastMCP):
         return str(result)
         result = prosper.execute_job({"op": "run", "command_id": command_id})
         return str(result)
+
+    @mcp.tool()
+    def close_prosper_session() -> str:
+        """Закрывает сессию PROSPER. Используй этот инструмент, когда закончил работу, чтобы освободить токен для других студентов."""
+        if prosper.session_id:
+            prosper.close_session()
+            return "Сессия PROSPER успешно закрыта."
+        return "Сессия уже была закрыта."
