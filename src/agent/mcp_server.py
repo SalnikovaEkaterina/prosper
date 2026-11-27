@@ -84,3 +84,35 @@ def prepare_update_model_plan(well_id: str | None, change: dict | None = None) -
 
 if __name__ == "__main__":
     mcp.run()
+
+
+from src.agent.prosper_http import ProsperClient
+
+
+@mcp.tool()
+def prosper_read_parameter(
+    tag: str,
+    session_id: str
+) -> dict:
+    """Отправляет задание на чтение параметра PROSPER
+    по его точному адресу OpenServer.
+    Не изменяет модель.
+    """
+
+    client = ProsperClient()
+    client.session_id = session_id
+
+    return client.read_parameter(tag)
+
+
+@mcp.tool()
+def prosper_get_job(
+    job_id: str,
+    session_id: str
+) -> dict:
+    """Получает состояние и результат задания PROSPER."""
+
+    client = ProsperClient()
+    client.session_id = session_id
+
+    return client.get_job(job_id)

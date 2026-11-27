@@ -171,11 +171,11 @@ def run(request: str, ctx: dict | None = None) -> AgentResult:
                     "wall_mm": task.wall_mm,
                     "id_mm": task.id_mm,
                 }))
-                result = AgentResult(**mcp_result, task_type=task.task_type.value, llm_used=mode == "openai_responses")
+                result = AgentResult(**{**mcp_result, "task_type": task.task_type.value, "llm_used": mode == "openai_responses"})
         elif task.task_type in (TaskType.CREATE_MODEL_PLAN, TaskType.UPDATE_MODEL_PLAN):
             mcp_tool = "prepare_new_model_plan" if task.task_type == TaskType.CREATE_MODEL_PLAN else "prepare_update_model_plan"
             mcp_result = __import__("asyncio").run(_call_mcp(mcp_tool, {"well_id": task.well_id, "change": task.change or {}}))
-            result = AgentResult(**mcp_result, task_type=task.task_type.value, llm_used=mode == "openai_responses")
+            result = AgentResult(**{**mcp_result, "task_type": task.task_type.value, "llm_used": mode == "openai_responses"})
         else:
             result = AgentResult(status="NO_SOLUTION", trace_id=trace_id, reason="Неизвестный тип задачи.")
     except Exception as exc:
