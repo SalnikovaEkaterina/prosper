@@ -1,5 +1,5 @@
 openai
-mcp
+mcp<2
 python-dotenv
 pydantic
 pytest
