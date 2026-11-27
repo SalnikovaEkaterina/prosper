@@ -1,0 +1,8 @@
+Для запуска сервера: 
+
+pip install -r requirements.txt
+
+создайте .env по примеру
+
+запустите 
+python -m src.agent.mcp_server
