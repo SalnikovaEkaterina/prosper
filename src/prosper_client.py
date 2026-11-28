@@ -32,11 +32,18 @@ class ProsperClient:
         return self._api("GET", "/health")
 
     def open_session(self):
-        status, opened = self._api("POST", "/v1/session")
-        if status == 200:
-            self.session_id = opened["session_id"]
-            return True
+    # 1. Открываем сессию
+    status, opened = self._api("POST", "/v1/session")
+    if status != 200:
         return False
+    self.session_id = opened["session_id"]
+
+    status, model = self._api("GET", "/v1/model", session=self.session_id)
+    if status == 404:
+        # Если модели нет, создаем её
+        self._api("POST", "/v1/model", session=self.session_id, body={"app": "PROSPER"})
+        
+    return True
 
     def close_session(self):
         if self.session_id:
